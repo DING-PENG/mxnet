@@ -19,6 +19,7 @@
 #include <vector>
 #include <zmq.h>
 #include "./operator_common.h"
+#include "./p2pnet.pb.h"
 
 namespace mxnet {
 namespace op {
@@ -88,7 +89,7 @@ class P2PNet {
   // TODO: We should remove this queue. If we can use serializaion and
   // and send only one message to Main() thread when a send/recv operator
   // needs to add a request, then this mapping is not needed.
-  std::map<std::string, size_t> request_index_mapping_;
+  // std::map<std::string, size_t> request_index_mapping_;
 };
 
 }  // namespace op

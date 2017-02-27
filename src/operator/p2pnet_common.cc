@@ -33,7 +33,7 @@ bool P2PNet::Init(const std::string& address) {
   send_request_queue_.clear();
   recv_request_queue_.clear();
   recv_request_poll_indices.clear();
-  request_index_mapping_.clear();
+  // request_index_mapping_.clear();
   // {recv_request_sockets_.clear();}
   // Note that we should not reinit recv_request_sockets_ because we don't want
   // to do connect every time.
@@ -180,18 +180,42 @@ void P2PNet::Main() {
     zmq_poll(poll_items_, poll_items_count_, -1);
     if (poll_items_[0].revents & ZMQ_POLLIN) { // internal request
       std::string identity;
-      RequestType type;
-      size_t index = 0;
-      RecvWithIdentity(internal_server_, &identity, &type, sizeof(type));
-      if (type == NewIndexRequest) {
-        index = request_queue_.size();
-        request_queue_.resize(index + 1);
-        request_index_mapping_[identity] = index;
-        SendWithIdentity(internal_server_, identity, &index, sizeof(index));
-      } else if (type == AddRequest) {
-        index = request_index_mapping_[identity];
-        DoInternalRequest(index);
+      char req_buffer[100];
+      RecvWithIdentity(internal_server_, &identity, req_buffer, sizeof(req_buffer));
+      std::string req_str = std::string(req_buffer);
+      p2pnetS::Request req;
+      
+      req.ParseFromString(req_str);
+      P2PNet::Request* request = new P2PNet::Request;
+      switch (req.type()) {
+        case p2pnetS::Request::NewIndexRequest:
+          request->type = NewIndexRequest;
+          break;
+        case p2pnetS::Request::AddRequest:
+          request->type = AddRequest;
+          break;
+        case p2pnetS::Request::SendRequest:
+          request->type = SendRequest;
+          break;
+        case p2pnetS::Request::RecvRequest:
+          request->type = RecvRequest;
+          break;
       }
+      request->address = req.address();
+      request->tensor_id = (unsigned) req.tensor_id();
+      request->buffer = (void *) req.buffer();
+      request->buffer_size = (size_t) req.buffer_size();
+      std::vector<NDArray*> ndptrs;
+      for (auto nd : req.ndptrs()) {
+        ndptrs.push_back((NDArray*) nd);
+      }
+      request->ndptrs = ndptrs;
+      request->on_complete = *((engine::CallbackOnComplete*) req.on_complete());
+
+      size_t index = request_queue_.size();
+      request_queue_.resize(index + 1);
+      request_queue_[index] = request;
+      DoInternalRequest(index);
     }
     if (poll_items_[1].revents & ZMQ_POLLIN) {
       DoExternalRequest();
@@ -219,22 +243,39 @@ void P2PNet::Start() {
 }
 
 void P2PNet::DoRequest(struct Request* request) {
-  // I use a very tricky way to avoid lock.
-  // 1. Send a message to ask the server to increase the size of request queue.
-  // 2. The server returns the position that this request can be put to.
-  // 3. Put the request to the request queue.
-  // 4. Send a message to ask the server to process the new request.
+  // Use Serialization
   void* request_socket = zmq_socket(zmq_context_, ZMQ_REQ);
   std::string identity = CreateIdentity();
   zmq_setsockopt(request_socket, ZMQ_IDENTITY, identity.c_str(), 8);
   zmq_connect(request_socket, "inproc://mxnet_local_request");
-  RequestType type = NewIndexRequest;
-  zmq_send(request_socket, &type, sizeof(type), 0);
-  size_t index;
-  zmq_recv(request_socket, &index, sizeof(size_t), 0);
-  type = AddRequest;
-  request_queue_[index] = request;
-  zmq_send(request_socket, &type, sizeof(type), 0);
+
+  p2pnetS::Request req;
+  switch (request->type) {
+        case NewIndexRequest:
+          req.set_type(p2pnetS::Request::NewIndexRequest);
+          break;
+        case AddRequest:
+          req.set_type(p2pnetS::Request::AddRequest);
+          break;
+        case SendRequest:
+          req.set_type(p2pnetS::Request::SendRequest);
+          break;
+        case RecvRequest:
+          req.set_type(p2pnetS::Request::RecvRequest);
+          break;
+      }
+  req.set_address(request->address);
+  req.set_tensor_id(request->tensor_id);
+  req.set_buffer((size_t)(request->buffer));
+  req.set_buffer_size(request->buffer_size);
+  // req->set_ndptrs
+  for (auto nd : request->ndptrs) {
+    req.add_ndptrs((size_t)nd);
+  }
+  req.set_on_complete((size_t)(&(request->on_complete)));
+  std::string req_str = req.SerializeAsString();
+
+  zmq_send(request_socket, req_str.c_str(), req_str.size(), 0);
   zmq_close(request_socket);
 }
 

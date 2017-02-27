@@ -1,0 +1,18 @@
+package p2pnetS;
+
+message Request {
+  enum RequestType {
+    NewIndexRequest = 0;
+    AddRequest = 1;
+    SendRequest = 2;
+    RecvRequest = 3;
+  }
+
+  required RequestType type = 1;
+  required string address = 2;
+  required uint64 tensor_id = 3;
+  required uint64 buffer = 4;
+  required uint64 buffer_size = 5;
+  repeated uint64 ndptrs = 6;
+  required uint64 on_complete = 7;
+}
