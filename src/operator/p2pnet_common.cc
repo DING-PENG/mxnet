@@ -180,7 +180,7 @@ void P2PNet::Main() {
     zmq_poll(poll_items_, poll_items_count_, -1);
     if (poll_items_[0].revents & ZMQ_POLLIN) { // internal request
       std::string identity;
-      char req_buffer[100];
+      char req_buffer[100]; // TODO: Use appropriate const number instead of 100
       RecvWithIdentity(internal_server_, &identity, req_buffer, sizeof(req_buffer));
       std::string req_str = std::string(req_buffer);
       p2pnetS::Request req;
