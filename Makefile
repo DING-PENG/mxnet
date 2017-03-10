@@ -140,9 +140,6 @@ OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 CUSRC = $(wildcard src/*/*/*.cu src/*/*.cu src/*.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 
-# PROTOSRC = $(src/operator/p2pnet.pb.cc)
-# PROTOOBJ = $(patsubst build/%pb.o, $(PROTOSRC))
-
 # extra operators
 ifneq ($(EXTRA_OPERATORS),)
 	EXTRA_SRC = $(wildcard $(patsubst %, %/*.cc, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.cc, $(EXTRA_OPERATORS)))
@@ -203,7 +200,7 @@ endif
 
 PROTOC = deps/bin/protoc
 
-build/src/operator/p2pnet_%.o: src/operator/p2pnet_%.cc src/operator/p2pnet.pb.h
+build/src/operator/p2pnet_%.o: src/operator/p2pnet_%.cc src/operator/p2pnet.pb.h PSLITE
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
 src/operator/p2pnet.pb.h: src/operator/p2pnet.proto
