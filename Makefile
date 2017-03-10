@@ -198,9 +198,18 @@ else
 	CFLAGS += -DMXNET_USE_NVRTC=0
 endif
 
-build/src/%.o: src/%.cc
+PROTOC = deps/bin/protoc
+
+# build/src/operator/p2p%.o: src/operator/p2p%.cc src/operator/p2pnet.pb.h
+# 	@mkdir -p $(@D)
+# 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+
+build/src/%.o: src/%.cc src/operator/p2pnet.pb.h
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+src/%.pb.cc src/%.pb.h: src/%.proto
+	@echo 'Generating protobuf files'
+	$(PROTOC) --cpp_out=src/operator --proto_path=src/operator $<
 
 build/src/%_gpu.o: src/%.cu
 	@mkdir -p $(@D)
